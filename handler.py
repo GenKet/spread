@@ -1,5 +1,5 @@
 import time
-
+import random
 from main import dp, bot, spread
 from aiogram import types
 from aiogram.dispatcher import FSMContext
@@ -10,21 +10,26 @@ import requests
 from requests.auth import HTTPBasicAuth
 import json
 import xlwings as xw
+import pandas
 
 import openpyxl
 import threading
 
-from markup import back_markup, get_prognoz_markup, upst_markup
+from markup import back_markup, get_prognoz_markup, upst_markup, get_markup
 from inline_markup import start_in, check_markup
 from main import Database
 from dict import translate,month,days
+
+def kick(time_out, user_id):
+    time.sleep(time_out)
+    Database.upd_status(0, -1, user_id)
+
 
 async def check(token):
     basic = HTTPBasicAuth('25332', '79588228d9f50034fc476444807a8cb9d58b34f02504467aa18d5e001e4e9db4')
     r = requests.get(f"https://checkout.bepaid.by/ctp/api/checkouts/{token}", auth=basic)
     print(r.text)
     r = r.json()
-
     status = r["checkout"]["status"]
     if status == "successful":
         return True
@@ -44,16 +49,13 @@ async def payments(product_id):
 
     r = requests.get(f'https://api.bepaid.by/products/{product_id}', auth=basic)
     r = r.json()
-    name = r["name"]
     description = r["description"]
     amount = r["amount"]
     amount1 = float(amount / 100)
     currency = r["currency"]
-    # infinite = r["infinite"]
     pay_url = r["pay_url"]
     payment_url = r["payment_url"]
     confirm_url = r["confirm_url"]
-    print(r)
 
     data = {
         "checkout": {
@@ -103,16 +105,16 @@ async def payments(product_id):
 
 
 
-
-async def free_spread(text_1, text_2, text_3, current_chat):
+def free_spread(text_1, text_2, text_3, current_chat):
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     if current_time == "08:00:00":
-        await bot.send_message(current_chat,text_1)
+        bot.send_message(current_chat,text_1)
         time.sleep(86400)
-        await bot.send_message(current_chat, text_2)
+        bot.send_message(current_chat, text_2)
         time.sleep(86400)
-        await bot.send_message(current_chat,text_3)
+        bot.send_message(current_chat,text_3)
+        bot.send_message(current_chat,"Сегодня заканчивается бесплатный доступ к моим информационным ресурсам! И я буду рада быть тебе полезной и в дальнейшем!\nПриглашаю тебя продолжить наше знакомство, для этого тебе нужно выбрать любой тариф!",reply_markup=upst_markup)
 
 
 @dp.message_handler(state=spread.name_us)
@@ -122,7 +124,7 @@ async def get_name(message: types.Message, state:FSMContext ):
         data_storage["user_id"] = message.from_user.id
         data_storage["name"] = name
         await bot.send_message(message.chat.id,
-            f"Рад нашему знакомству,{name}\n\nТеперь я буду всегда с тобой, как матрица, в которой мы все находимся\n\nНапиши, пожалуйста, ниже, из какого ты города.", reply_markup=back_markup)
+            f"Рада нашему знакомству,{name}\n\nТеперь я буду всегда с тобой, как матрица, в которой мы все находимся\n\nНапиши, пожалуйста, ниже, из какого ты города.", reply_markup=back_markup)
         await spread.city.set()
 
 
@@ -198,47 +200,31 @@ async def next_result(callback_query: CallbackQuery, state: FSMContext):
 
 
 @dp.message_handler(state=spread.accept)
-async def get_prognoz(message: types.Message):
-    now = datetime.now()
-    current_day = now.day
-    current_month = now.month
-    current_time = now.strftime("%H:%M:%S")
-    # try:
-    wb = openpyxl.load_workbook('1.xlsx')
-    sheet = wb['Данные']
-    bithday = Database.get_bithday(message.from_user.id)
-    day_n, month_n, years_n = bithday.split(".")
-    current_bithday = f"{month_n}/{day_n}/{years_n}"
-    print(current_bithday)
+async def get_prognoz(message: types.Message, state:FSMContext):
+    async with state.proxy() as data_storage:
+        now = datetime.now()
+        current_day = now.day
+        current_month = now.month
+        current_time = now.strftime("%H:%M:%S")
+        bithday = data_storage["bithday"]
+        value_1 = random.randint(0,9)
+        value_2 = int(value_1) + 1
+        if value_2 > 9:
+            value_2 = 1
+        value_3 = value_2 + 1
+        if value_3 > 9:
+            value_3 = 1
 
-    sheet['C5'] = current_bithday
-    wb.save(f'prog\\{message.from_user.id}.xlsx')
-    wb.close()
-
-    wbxl = xw.Book(f'prog\\{message.from_user.id}.xlsx')
-    letter = days.get(current_day)
-    number = month.get(current_month)
-    search = letter + number
-    value_1 = wbxl.sheets['Прогноз год'].range(f'{search}').value
-    print(value_1)
-    print(1)
-    value_2 = int(value_1) + 1
-    if value_2 > 9:
-        value_2 = 1
-    value_3 = value_2 + 1
-    if value_3 > 9:
-        value_3 = 1
-    wbxl.close()
-    text_1 = translate.get(value_1)
-    text_2 = translate.get(value_2)
-    text_3 = translate.get(value_3)
-    current_chat = message.chat.id
-    text_1 = "Доброе утро!\nГотов твой прогноз на сегодня:\n" + text_1
-    t1 = threading.Thread(target=free_spread, args=(text_1,text_2,text_3,current_chat))
-    t1.start()
-    await bot.send_message(message.chat.id, "А давай я ещё тебе расскажу подробнее о том, как ты сможешь получать свой прогноз.\n\nПакет'ПРЕМИУМ'\nДейсвтует в течении года.\nВключает в сеья прогноз на каждый день, на месяц и на текущий год.\nСтоимость - 140$\n\nПакет'ВЫХОД ИЗ МАТРИЦЫ'\nДействует в течении месяца.\nВключает в себя прогноз на каждый день, на текущий месяц и на текущий год.\nСтоимость - 14$\n\nПакет'ПЕРЕХОД'\nДействует в течении месяца.\nВключает в себя 15 запросов на прогноза на день и прогноз на текущий месяц.\nСтоимость - 12$\n\nПакет'НАЧАЛО'\nДействует в течении месяца.\nВключает в себя 8 запросов прогноза на день\nСтоимость - 8$", reply_markup=upst_markup)
-    await bot.send_message(message.chat.id, "Удачного тебе дня!\nУшла делать расчет твоего прогноза на следующий день!\nВстретимся завтра утром!")
-    await spread.upst.set()
+        text_1 = translate.get(value_1)
+        text_2 = translate.get(value_2)
+        text_3 = translate.get(value_3)
+        current_chat = message.chat.id
+        text_1 = "Доброе утро!\nГотов твой прогноз на сегодня:\n" + text_1
+        t1 = threading.Thread(target=free_spread, args=(text_1,text_2,text_3,current_chat))
+        t1.start()
+        await bot.send_message(message.chat.id, "А давай я ещё тебе расскажу подробнее о том, как ты сможешь получать свой прогноз.\n\nПакет'ПРЕМИУМ'\nДействует в течении года.\nВключает в сеья прогноз на каждый день, на месяц и на текущий год.\nСтоимость - 140$\n\nПакет'ВЫХОД ИЗ МАТРИЦЫ'\nДействует в течении месяца.\nВключает в себя прогноз на каждый день, на текущий месяц и на текущий год.\nСтоимость - 14$\n\nПакет'ПЕРЕХОД'\nДействует в течении месяца.\nВключает в себя 15 запросов на прогноза на день и прогноз на текущий месяц.\nСтоимость - 12$\n\nПакет'НАЧАЛО'\nДействует в течении месяца.\nВключает в себя 8 запросов прогноза на день\nСтоимость - 8$", reply_markup=upst_markup)
+        await bot.send_message(message.chat.id, "Удачного тебе дня!\nУшла делать расчет твоего прогноза на следующий день!\nВстретимся завтра утром!")
+        await spread.upst.set()
     # except:
     #     pass
 
@@ -247,10 +233,11 @@ async def get_prognoz(message: types.Message):
 async def upst(message: types.Message, state:FSMContext):
     async with state.proxy() as data_storage:
         if message.text == "Начало":
-            product_id = "prd_2c7478647cf6bd3d "
+            product_id = "prd_2c7478647cf6bd3d"
             result = await payments(product_id)
             await bot.send_message(message.chat.id,f"Для оплаты перейдите по ссылке:{result[2]}", reply_markup=check_markup)
             token = result[0]
+            data_storage["count"] = 8
             data_storage["token"] = token
             data_storage["status"] = 1
         elif message.text == "Переход":
@@ -258,6 +245,7 @@ async def upst(message: types.Message, state:FSMContext):
             result = await payments(product_id)
             await bot.send_message(message.chat.id,f"Для оплаты перейдите по ссылке:{result[2]}", reply_markup=check_markup)
             token = result[0]
+            data_storage["count"] = 15
             data_storage["token"] = token
             data_storage["status"] = 2
         elif message.text == "Выход из матрицы":
@@ -265,6 +253,7 @@ async def upst(message: types.Message, state:FSMContext):
             result = await payments(product_id)
             await bot.send_message(message.chat.id,f"Для оплаты перейдите по ссылке:{result[2]}", reply_markup=check_markup)
             token = result[0]
+            data_storage["count"] = 0
             data_storage["token"] = token
             data_storage["status"] = 3
         elif message.text == "Премиум":
@@ -272,6 +261,7 @@ async def upst(message: types.Message, state:FSMContext):
             result = await payments(product_id)
             await bot.send_message(message.chat.id,f"Для оплаты перейдите по ссылке:{result[2]}", reply_markup=check_markup)
             token = result[0]
+            data_storage["count"] = 0
             data_storage["token"] = token
             data_storage["status"] = 4
         elif message.text == "Назад":
@@ -285,10 +275,19 @@ async def next_result(callback_query: CallbackQuery, state: FSMContext):
         token = data_storage["token"]
         result = await check(token)
         if result == True:
+            count = data_storage["count"]
             status = data_storage["status"]
-            await bot.send_message(callback_query.message.chat.id, "Успешно оплачено!",reply_markup=start_in)
-            await Database.upd_status(status, callback_query.message.from_user.id)
+            await bot.send_message(callback_query.message.chat.id, "Успешно оплачено!",reply_markup=get_markup)
+            await Database.upd_status(status, count,callback_query.message.from_user.id)
             await state.finish()
+            if status == 3:
+                time_out = 2592000
+                t2 = threading.Thread(target=kick, args=(time_out,callback_query.message.from_user.id))
+                t2.start()
+            elif status == 4:
+                time_out = 31104000
+                t2 = threading.Thread(target=kick, args=(time_out,callback_query.message.from_user.id))
+                t2.start()
         else:
             await bot.send_message(callback_query.message.chat.id,"Ожидаю подтверждение платежа, проверьте платеж позже")
             await spread.upst.set()

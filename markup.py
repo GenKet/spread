@@ -16,3 +16,7 @@ matrix = types.KeyboardButton("Выход из матрицы")
 perech = types.KeyboardButton("Переход")
 upst_markup.add(start, perech, matrix, prem)
 upst_markup.row(back)
+
+get_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+get = types.KeyboardButton("Приступим к моему пакету")
+get_markup.add(get_prognoz)

@@ -32,8 +32,18 @@ class BotDB:
         result = self.cursor.execute("select bithday from users where user_id = (?)", (user_id,))
         return result.fetchone()[0]
 
-    def upd_status(self, status ,user_id):
-        self.cursor.execute("UPDATE users SET status = ? WHERE user_id = ?",
-                            (status, user_id))
+    def upd_status(self, status, count ,user_id):
+        self.cursor.execute("UPDATE users SET status = ?, count = ? WHERE user_id = ?",
+                            (status, count, user_id))
         return self.conn.commit()
+
+    def get_status(self, user_id):
+        """Достаем баланс в базе по его user_id"""
+        result = self.cursor.execute("select status from users where user_id = (?)", (user_id,))
+        return result.fetchone()[0]
+
+    def get_count(self, user_id):
+        """Достаем баланс в базе по его user_id"""
+        result = self.cursor.execute("select count from users where user_id = (?)", (user_id,))
+        return result.fetchone()[0]
 

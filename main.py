@@ -14,6 +14,7 @@ dp = Dispatcher(bot, storage=storage)
 
 from handler import *
 
+
 class spread(StatesGroup):
     name_us = State()
     city = State()
@@ -27,7 +28,7 @@ class spread(StatesGroup):
 async def start(message: types.Message):
     if not(Database.user_exists(message.from_user.id)):
         Database.add_user(message.from_user.id)
-    await message.reply("Приветствую тебя, дорогой!\n\nМеня зовут Тринити! Я нумерологический бот-помощник и твой проводник в мир цифр.\n\nА как зовут тебя?\n\nВведи, пожалуйста, своё имя ниже")
+    await message.reply("Приветствую тебя, дорогой друг!\n\nМеня зовут Тринити! Я нумерологический бот-помощник и твой проводник в мир цифр.\n\nА как зовут тебя?\n\nВведи, пожалуйста, своё имя ниже")
     await spread.name_us.set()
 
 
